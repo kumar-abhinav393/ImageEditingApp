@@ -16,9 +16,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,9 +52,12 @@ import androidx.compose.ui.unit.dp
 fun ImageEditingAppUI(){
     //State to hold the selected image URI or Bitmap
     var selectedImage by remember { mutableStateOf<Bitmap?>(null) }
-
+    //Track if a filter has been applied
+    var isFilterApplied by remember { mutableStateOf(false) }
     //State to hold the selected filter
-    var selectedFilter by remember { mutableStateOf<String>("Apply Filter") }
+    var selectedFilter by remember { mutableStateOf("Select Filter") }
+    //State to control dropdown expansion
+    var expanded by remember { mutableStateOf(false) }
 
     //Get the current context in the composable scope
     val context = LocalContext.current
@@ -75,55 +83,87 @@ fun ImageEditingAppUI(){
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        //ImageView to display the selected image along with a cancel icon
-        Box(modifier = Modifier.size(300.dp)){
+        //ImageView to display the selected image
+        Box(modifier = Modifier
+            .size(300.dp)
+            .padding(16.dp)
+            .border(2.dp, Color.Gray, RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center){
             if(selectedImage != null){
+                //Display the selected image
                 Image(
                     bitmap = selectedImage!!.asImageBitmap(),
                     contentDescription = "Selected Image",
                     modifier = Modifier
-                        .size(300.dp)
-                        .padding(16.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(2.dp, Color.Gray, RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
 
-                //Cancel icon over the image to allow removing it
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Cancel Image",
+                //Transplant Delete Icon overlay on the top-right corner
+                IconButton(onClick = { selectedImage = null },
                     modifier = Modifier
-                        .padding(8.dp)
-                        .size(24.dp)
-                        .clip(
-                            CircleShape
-                        )
-                        .clickable { selectedImage = null }
-                        .background(Color.White),
-                    tint = Color.Black
-                )
+                        .align(Alignment.TopEnd)
+                        .background(Color.Transparent)
+                        .size(40.dp)) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Image", tint = Color.White)
+                }
             } else {
                 //Placeholder Text when no image is selected
                 Text(text = "No Image Selected", modifier = Modifier.padding(16.dp))
             }
         }
-
-        //Show FilterOptionsDropdown only if an image is selected
-        if (selectedImage != null) {
-            FilterOptionsDropDown(selectedFilter) { newFilter ->
-                selectedFilter = newFilter
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        //Display filter options only when an image is selected
+        if(selectedImage != null){
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly, 
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                //Dropdown for filter selection
+                Box {
+                    Button(onClick = { expanded = true }) {
+                        Text(text = selectedFilter)
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        listOf("Grayscale", "Brightness", "Contrast").forEach {filter ->
+                            DropdownMenuItem(text = { Text(text = filter) },
+                                onClick = {
+                                    selectedFilter = filter
+                                    expanded = false
+                                })
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                //Apply Filter button
+                Button(onClick = { 
+                    if (selectedFilter != "Select Filter") {
+                        //TODO: Apply the selected filter
+                        isFilterApplied = true
+                    }
+                }) {
+                    Text(text = "Apply filter")
+                }
             }
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
 
-
-        //Button to select an image
+        //Change button text based on whether the filter has been applied
         Button(onClick = {
-            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-            imagePickerLauncher.launch(intent)
-            selectedFilter = "Apply Filter"
+            if (!isFilterApplied) {
+                val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                imagePickerLauncher.launch(intent)
+                selectedFilter = "Apply Filter"
+            } else {
+                //Logic for saving the image
+                //Todo: Save the processed image and the log the operation
+            }
         }) {
-            Text(text = "Select Image")
+            Text(text = if(!isFilterApplied) "Select Image" else "Save Image")
         }
     }
 }
@@ -138,35 +178,4 @@ fun getBitmapFromUri(context: android.content.Context, uri: Uri): Bitmap {
     }
 }
 
-@Composable
-fun FilterOptionsDropDown(selectedFilter: String, onFilterSelected: (String)-> Unit) {
-    //Available filters
-    val filters = listOf("Grayscale", "Brightness", "Contrast")
-
-    //Dropdown state
-    var expanded by remember { mutableStateOf(false) }
-
-    //Box to position the dropdown
-    Box {
-        //Button to display the selected filter
-        Button(onClick = { expanded = true }) {
-            Text(text = selectedFilter)
-        }
-
-        //DropdownMenu for filter selection
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = {expanded = false}
-        ) {
-            filters.forEach { filter ->
-                DropdownMenuItem(
-                    text = { Text(text = filter) },         //Provide the text for the dropdown item
-                    onClick = {
-                        onFilterSelected(filter)            //Update the selected filter
-                        expanded = false                    //Close the dropdown
-                    })
-            }
-        }
-    }
-}
 
